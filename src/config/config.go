@@ -2,6 +2,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"sync"
 
@@ -34,18 +35,37 @@ func DefaultConfig() *AppConfig {
 	}
 }
 
-// LoadConfig 加载配置，优先读取 config.toml，失败则使用默认配置
+// LoadConfig 加载配置，优先级：环境变量 > config.toml > 默认配置
 func LoadConfig() *AppConfig {
 	cfg := DefaultConfig()
 	if data, err := os.ReadFile("config.toml"); err == nil {
 		_ = toml.Unmarshal(data, cfg)
 	}
 
+	applyEnvOverrides(cfg)
+
 	appConfigLock.Lock()
 	appConfig = cfg
 	appConfigLock.Unlock()
 
 	return cfg
+}
+
+func applyEnvOverrides(cfg *AppConfig) {
+	if host := os.Getenv("SERVER_HOST"); host != "" {
+		cfg.Server.Host = host
+	}
+	if port := os.Getenv("SERVER_PORT"); port != "" {
+		if p, err := parsePort(port); err == nil {
+			cfg.Server.Port = p
+		}
+	}
+}
+
+func parsePort(portStr string) (int, error) {
+	var port int
+	_, err := fmt.Sscanf(portStr, "%d", &port)
+	return port, err
 }
 
 // GetConfig 获取当前配置，线程安全
